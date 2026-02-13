@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Showcase (Dual Timers)</title>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 40px; 
+            background-color: #f5f5f7;
+        }
+        h1 { margin-bottom: 10px; color: #333; }
+        
+        #disconnect-msg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #ff4d4f; 
+            color: white;
+            text-align: center;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 16px;
+            z-index: 2000;
+            display: none; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #processing-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px; 
+            background: linear-gradient(90deg, #0070f3, #00c6ff);
+            z-index: 1000;
+            display: none; 
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        #processing-text {
+            position: fixed;
+            top: 15px;
+            background: rgba(0, 112, 243, 0.9);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 1001;
+            display: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .main-row {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+            align-items: flex-start;
+            margin-top: 20px;
+        }
+
+        #video-container { 
+            flex-grow: 1;
+            aspect-ratio: 16/9; 
+            background: #000; 
+            position: relative; 
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        video, audio { width: 100%; height: 100%; object-fit: cover; }
+
+        .controls { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            width: 200px; 
+            padding: 20px; 
+            background: white; 
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+            height: fit-content;
+        }
+        
+        button { 
+            width: 100%; 
+            padding: 15px; 
+            cursor: pointer; 
+            background-color: #0070f3; 
+            color: white;
+            border: none; 
+            border-radius: 6px; 
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) { background-color: #005bb5; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button#disconnectBtn { background-color: #e00; }
+        button#disconnectBtn:hover:not(:disabled) { background-color: #b00; }
+        button.active-mic { background-color: #e00; }
+        
+        .transcript-container {
+            width: 100%;
+            max-width: 1000px; 
+            margin-top: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-sizing: border-box;
+        }
+
+        .transcript-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        textarea#transcriptLog {
+            width: 100%;
+            height: 200px; 
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px; 
+            line-height: 1.5;
+            resize: vertical;
+            background-color: #1e1e1e; 
+            color: #0f0; 
+            white-space: pre-wrap; 
+            box-sizing: border-box;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee; 
+        }
+        
+        input#textCommand {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button#sendBtn { width: auto; }
+        
+        #status { margin-bottom: 5px; color: #666; font-family: monospace; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <div id="disconnect-msg"></div>
+
+    <div id="processing-bar"></div>
+    <div id="processing-text">Processing...</div>
+
+    <h1>Device Showcase Virtual Coworker</h1>
+    <div id="status">Ready to connect...</div>
+
+    <div class="main-row">
+        <div id="video-container"></div>
+        
+        <div class="controls">
+            <button onclick="initSession()" id="connectBtn">Start & Connect</button>
+            <button onclick="toggleMic()" disabled id="micBtn">Mic On/Off</button>
+            <button onclick="disconnect()" disabled id="disconnectBtn">Disconnect</button>
+        </div>
+    </div>
+
+    <div class="transcript-container">
+        <div class="transcript-header">
+            <h3>Conversation Transcript</h3>
+            <button onclick="downloadTranscript()" style="background-color:#28a745; width:auto; padding:8px 16px; font-size:14px;">Download Log</button>
+        </div>
+        
+        <div class="input-group">
+            <input type="text" id="textCommand" placeholder="Type a command..." onkeypress="handleInputKey(event)">
+            <button onclick="sendTextCommand()" id="sendBtn" disabled>Send</button>
+        </div>
+
+        <textarea id="transcriptLog" readonly placeholder="Conversation history will appear here..."></textarea>
+    </div>
+
+    <script>
+        let currentRoom = null;
+        let processingTimeout = null;
+        let agentAudioInterval = null;
+        let currentSessionId = null; 
+        
+        // --- TIMERS ---
+        let inactivityTimer = null; 
+        let sessionLimitTimer = null; 
+        
+        let lastSentText = ""; 
+        
+        const SNAPLOGIC_URL = "https://elastic.snaplogic.com/api/1/rest/slsched/feed/VerizonEISDev/DeliveryAssurance/shared/Embedded_Agent_Token_Request%20Task_Gnd?bearer_token=8tn6rpItp0F8RIYNNGq2LECBvdi9is2X";
+
+        // 1. Inactivity Timer Logic (Resets on interaction)
+        function resetInactivityTimer() {
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            if (currentRoom && currentRoom.state === 'connected') {
+                inactivityTimer = setTimeout(() => {
+                    logToConsole("[SYSTEM] 30s Inactivity Timeout.");
+                    disconnect("Inactivity Timeout. Please hit \"Start & Connect\" to start a new session.");
+                }, 30000); // 30 seconds
+            }
+        }
+
+        function setProcessing(isProcessing) {
+            const bar = document.getElementById('processing-bar');
+            const txt = document.getElementById('processing-text');
+            if (processingTimeout) clearTimeout(processingTimeout);
+
+            if (isProcessing) {
+                bar.style.display = 'block';
+                txt.style.display = 'block';
+                updateStatus("Processing user input...");
+                processingTimeout = setTimeout(() => {
+                    if (bar.style.display === 'block') {
+                        setProcessing(false);
+                        logToConsole("[WARN] Processing timed out. No response detected.");
+                    }
+                }, 15000);
+            } else {
+                bar.style.display = 'none';
+                txt.style.display = 'none';
+                updateStatus("Connected & Listening");
+            }
+        }
+
+        function logToConsole(message) {
+            console.log(message);
+            const isUser = message.startsWith("[USER-INPUT]");
+            const isAgent = message.startsWith("[AI EDDIE]");
+            
+            if (isUser || isAgent) {
+                const log = document.getElementById('transcriptLog');
+                const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                let displayMsg = message;
+                if (isUser) displayMsg = message.replace("[USER-INPUT]", "User:");
+                if (isAgent) displayMsg = message.replace("[AI EDDIE]:", "Avatar:");
+                
+                displayMsg = displayMsg.replace("Sending:", "").replace("Transcribed:", "");
+                displayMsg = displayMsg.replace(/"/g, '').trim();
+
+                log.value += `[${timestamp}] ${displayMsg}\n`;
+                log.scrollTop = log.scrollHeight; 
+            }
+        }
+
+        function downloadTranscript() {
+            const content = document.getElementById('transcriptLog').value;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcript_log.txt`;
+            a.click();
+        }
+
+        async function initSession() {
+            if (currentRoom) return;
+            
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnect-msg').style.display = 'none'; 
+            updateStatus("Requesting Token...");
+            document.getElementById('transcriptLog').value = ""; 
+            currentSessionId = null; 
+            lastSentText = ""; 
+            
+            logToConsole("[SYSTEM] Starting Session Init...");
+
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const ctx = new AudioContext();
+                    await ctx.resume();
+                    ctx.close();
+                }
+
+                const slResponse = await fetch(SNAPLOGIC_URL);
+                if (!slResponse.ok) throw new Error("SnapLogic Error: " + slResponse.status);
+                const slData = await slResponse.json();
+                const sessionToken = slData[0]?.session_token;
+                
+                if (!sessionToken) throw new Error("No session token.");
+                logToConsole("[SYSTEM] Token Received. Calling Avatar API...");
+
+                const response = await fetch('https://api.liveavatar.com/v1/sessions/start', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + sessionToken, 'Accept': 'application/json' }
+                });
+
+                if (!response.ok) throw new Error("Avatar API Error: " + response.status);
+                const data = await response.json();
+                const innerData = data.data || data; 
+                
+                await connectToLiveKit(innerData.livekit_url, innerData.livekit_client_token);
+
+            } catch (error) {
+                logToConsole(`[ERROR] Init Failed: ${error.message}`);
+                updateStatus("Error: " + error.message);
+                document.getElementById('connectBtn').disabled = false;
+            }
+        }
+
+        async function connectToLiveKit(url, token) {
+            updateStatus("Connecting to Room...");
+            try {
+                currentRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+
+                currentRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    document.getElementById('video-container').appendChild(track.attach());
+                    logToConsole(`[ROOM] Track Subscribed: ${track.kind}`);
+                    if (track.kind === LivekitClient.Track.Kind.Audio) {
+                        const element = track.attach();
+                        element.onplay = () => {
+                            logToConsole("[AUDIO] Agent audio started playing.");
+                            setProcessing(false);
+                        };
+                        startAgentAudioMonitoring(participant);
+                    }
+                });
+
+                currentRoom.on(LivekitClient.RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+                    const decoder = new TextDecoder();
+                    const strData = decoder.decode(payload);
+                    logToConsole(`[RECEIVED] Topic: "${topic}" | Data: ${strData}`);
+                    
+                    try {
+                        const jsonData = JSON.parse(strData);
+                        
+                        if (jsonData.session_id) {
+                            if (currentSessionId !== jsonData.session_id) {
+                                currentSessionId = jsonData.session_id;
+                                logToConsole(`[SYSTEM] Session ID Captured: ${currentSessionId}`);
+                            }
+                        }
+
+                        if (jsonData.event_type && (jsonData.event_type.startsWith('avatar') || jsonData.event_type.startsWith('agent'))) {
+                            setProcessing(false);
+                        }
+                        
+                        if (jsonData.event_type === "avatar.transcription") {
+                            logToConsole(`[AI EDDIE]: "${jsonData.text}"`);
+                            resetInactivityTimer(); // Interaction detected
+                        }
+                        
+                        if (jsonData.event_type === "user.transcription") {
+                            if (jsonData.text === lastSentText) {
+                                console.log("[INFO] Ignored duplicate transcription echo.");
+                            } else {
+                                logToConsole(`[USER-INPUT] Transcribed: "${jsonData.text}"`);
+                            }
+                            lastSentText = ""; 
+                            resetInactivityTimer(); // Interaction detected
+                        }
+
+                    } catch(e) {}
+                });
+                
+                currentRoom.on(LivekitClient.RoomEvent.Connected, () => {
+                    logToConsole("[ROOM] Connected");
+                    
+                    // Start Inactivity Timer
+                    resetInactivityTimer();
+
+                    // 2. Start Demo Limit Timer (60s Hard Limit)
+                    if (sessionLimitTimer) clearTimeout(sessionLimitTimer);
+                    logToConsole("[SYSTEM] 60s Demo Timer Started");
+                    sessionLimitTimer = setTimeout(() => {
+                        logToConsole("[SYSTEM] 60s Demo Limit Reached.");
+                        disconnect("This demo version has 1 minute timeout. Please hit \"Start & Connect\" to start a new session.");
+                    }, 60000); 
+                });
+                
+                currentRoom.on(LivekitClient.RoomEvent.Disconnected, () => {
+                    logToConsole("[ROOM] Disconnected");
+                    // Default message if disconnected manually or by server error
+                    handleDisconnectUI("Session Disconnected. Please hit \"Start & Connect\" to start a new session.");
+                });
+
+                await currentRoom.connect(url, token);
+                
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('micBtn').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+
+                try {
+                    await currentRoom.localParticipant.setMicrophoneEnabled(true);
+                    document.getElementById('micBtn').classList.add("active-mic");
+                    updateStatus("Connected & Mic Live");
+                } catch(e) {
+                    updateStatus("Connected (Mic manual start required)");
+                }
+
+            } catch (error) {
+                logToConsole(`[ERROR] Connection Failed: ${error.message}`);
+                document.getElementById('connectBtn').disabled = false;
+            }
+        }
+
+        function startAgentAudioMonitoring(participant) {
+            if (agentAudioInterval) clearInterval(agentAudioInterval);
+            agentAudioInterval = setInterval(() => {
+                if (!participant) return;
+                if (participant.audioLevel > 0.01) setProcessing(false);
+            }, 100);
+        }
+
+        async function toggleMic() {
+            if (!currentRoom) return;
+            const btn = document.getElementById('micBtn');
+            const isEnabled = currentRoom.localParticipant.isMicrophoneEnabled;
+            await currentRoom.localParticipant.setMicrophoneEnabled(!isEnabled);
+            if (!isEnabled) {
+                btn.classList.add("active-mic");
+                logToConsole("[USER] Mic Unmuted");
+            } else {
+                btn.classList.remove("active-mic");
+                logToConsole("[USER] Mic Muted");
+            }
+            resetInactivityTimer(); // Interaction detected
+        }
+
+        function handleInputKey(event) {
+            if (event.key === "Enter") sendTextCommand();
+        }
+
+        async function sendTextCommand() {
+            const inputField = document.getElementById('textCommand');
+            const text = inputField.value.trim();
+            if (!text || !currentRoom) return;
+
+            resetInactivityTimer(); // Interaction detected
+
+            setProcessing(true); 
+            
+            logToConsole(`[USER-INPUT] Sending: "${text}"`);
+            lastSentText = text;
+
+            if (!currentSessionId) {
+                logToConsole("[WARN] No Session ID! Command may fail. Waiting for server event...");
+            }
+
+            try {
+                const encoder = new TextEncoder();
+                
+                const payload = JSON.stringify({ 
+                    event_type: "avatar.speak_response", 
+                    text: text,
+                    session_id: currentSessionId || "" 
+                });
+
+                await currentRoom.localParticipant.publishData(
+                    encoder.encode(payload), 
+                    { 
+                        reliable: true, 
+                        topic: "agent-control" 
+                    }
+                );
+                
+                console.log(`[SENT] Topic: agent-control | Type: avatar.speak_response`);
+
+                inputField.value = "";
+                
+            } catch (e) {
+                logToConsole(`[ERROR] Send Failed: ${e.message}`);
+                setProcessing(false);
+            }
+        }
+
+        // Updated to accept a custom message
+        function handleDisconnectUI(customMessage) {
+            if (agentAudioInterval) clearInterval(agentAudioInterval);
+            if (sessionLimitTimer) clearTimeout(sessionLimitTimer);
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            
+            setProcessing(false);
+            document.getElementById('video-container').innerHTML = '';
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('micBtn').classList.remove("active-mic");
+            document.getElementById('micBtn').disabled = true;
+            document.getElementById('connectBtn').disabled = false;
+            
+            // Set dynamic message
+            const msgDiv = document.getElementById('disconnect-msg');
+            msgDiv.innerText = customMessage || "Session Disconnected. Please hit \"Start & Connect\" to start a new session.";
+            msgDiv.style.display = 'block';
+            
+            updateStatus("Disconnected");
+        }
+
+        async function disconnect(reason) {
+            logToConsole(`[USER] Disconnecting... Reason: ${reason || "Manual"}`);
+            
+            // We store the reason in a temporary variable if we need it after async disconnect
+            // But simplified: we call handleDisconnectUI immediately with the reason
+            
+            if (currentRoom) {
+                // Remove the standard listener to prevent it from overwriting our custom message
+                currentRoom.removeAllListeners(LivekitClient.RoomEvent.Disconnected);
+                await currentRoom.disconnect();
+                currentRoom = null;
+            }
+            handleDisconnectUI(reason);
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('status').innerText = msg;
+        }
+    </script>
+</body>
+</html>
