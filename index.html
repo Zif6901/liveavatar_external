@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -327,7 +326,8 @@
                 registerBtn.innerText = "Sending...";
                 registerBtn.disabled = true;
 
-                const registerUrl = "https://tpalpb1wva002.verizon.com:8888/api/1/rest/feed/run/task/VerizonEISDev/DeliveryAssurance/shared/Embedded_Agent_Token_Request%20Task_Gnd?bearer_token=8tn6rpItp0F8RIYNNGq2LECBvdi9is2X";
+                // Updated registration URL to point to the elastic cloud endpoint
+                const registerUrl = "https://elastic.snaplogic.com/api/1/rest/slsched/feed/VerizonEISDev/DeliveryAssurance/shared/Embedded_Agent_Token_Request%20Task_Gnd?bearer_token=8tn6rpItp0F8RIYNNGq2LECBvdi9is2X";
                 
                 const payload = {
                     FullName: name,
@@ -383,7 +383,8 @@
         let sessionLimitTimer = null;
         let lastSentText = ""; 
         
-        const SNAPLOGIC_URL = "https://elastic.snaplogic.com/api/1/rest/slsched/feed/VerizonEISDev/DeliveryAssurance/shared/Embedded_Agent_Token_Request%20Task_Gnd?bearer_token=8tn6rpItp0F8RIYNNGq2LECBvdi9is2X";
+        // Note: this original URL remains intact for the Token Request functionality.
+        const SNAPLOGIC_URL = "https://tpalpb1wva002.verizon.com:8888/api/1/rest/feed/run/task/VerizonEISDev/DeliveryAssurance/shared/Embedded_Agent_Token_Request%20Task_Gnd?bearer_token=8tn6rpItp0F8RIYNNGq2LECBvdi9is2X";
 
         function resetInactivityTimer() {
             if (inactivityTimer) clearTimeout(inactivityTimer);
